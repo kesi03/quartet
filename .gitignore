@@ -1,0 +1,7 @@
+build/
+out/
+out-*/
+tools/shim/
+sdk/build/
+*.wasm
+*.zip

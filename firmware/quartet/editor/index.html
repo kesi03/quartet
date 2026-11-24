@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QUARTET</title>
+<script src="vibe-editor.js"></script>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; padding:20px; background:var(--vibe-bg,#100d16); color:var(--vibe-fg,#fff0d8);
+         font:14px var(--vibe-font,system-ui,sans-serif); }
+  h1 { font-size:26px; margin:0 0 4px; color:var(--vibe-accent,#e8a33b); letter-spacing:.12em; }
+  p.sub { color:var(--vibe-muted,#9c93a8); margin:0 0 18px; }
+  .wrap { display:grid; grid-template-columns:minmax(320px,1fr) minmax(320px,1.1fr); gap:18px; }
+  .card { background:var(--vibe-panel,#211a2c); border:1px solid var(--vibe-line,#3b3048);
+          border-radius:10px; padding:14px; }
+  .card h2 { font-size:12px; letter-spacing:.18em; color:var(--vibe-muted,#9c93a8);
+             margin:0 0 12px; font-weight:600; }
+  .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .pad { aspect-ratio:1.45; border-radius:8px; border:1px solid var(--vibe-line,#3b3048);
+         background:#2e2540; color:var(--vibe-fg,#fff0d8); cursor:pointer; font-size:11px;
+         display:flex; align-items:center; justify-content:center; text-align:center; padding:4px; }
+  .pad:hover { border-color:var(--vibe-accent,#e8a33b); }
+  .pad.hit { background:var(--vibe-accent,#e8a33b); color:#100d16; }
+  .row { display:grid; grid-template-columns:130px 1fr 58px; align-items:center; gap:10px; margin:9px 0; }
+  .row label { color:var(--vibe-muted,#9c93a8); font-size:12px; }
+  input[type=range] { width:100%; accent-color:var(--vibe-accent,#e8a33b); }
+  .val { text-align:right; font-variant-numeric:tabular-nums; color:var(--vibe-fg,#fff0d8); }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  button.act { background:#2e2540; color:var(--vibe-fg,#fff0d8); border:1px solid var(--vibe-line,#3b3048);
+               border-radius:6px; padding:7px 11px; cursor:pointer; }
+  button.act:hover { border-color:var(--vibe-accent,#e8a33b); }
+  .status { margin-top:14px; color:var(--vibe-muted,#9c93a8); font-size:12px; min-height:18px; }
+  @media (max-width:760px) { .wrap { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+  <h1>QUARTET</h1>
+  <p class="sub">Bowed-string quartet · 14 articulation styles · reverb, chorus, delay and echo · pads 1–16 fire original Stravinsky-style chords.</p>
+  <div class="wrap">
+    <div class="card">
+      <h2>CHORD PADS</h2>
+      <div class="grid" id="pads"></div>
+      <div class="btns">
+        <button class="act" data-cmd="23">DEMO</button>
+        <button class="act" data-cmd="22">PANIC</button>
+        <button class="act" data-cmd="24">NEXT PRESET</button>
+        <button class="act" data-cmd="25">PREV PRESET</button>
+        <button class="act" data-cmd="27">NEXT SLOT</button>
+        <button class="act" data-cmd="29">FX PAGE</button>
+        <button class="act" data-cmd="2a">STYLE PAGE</button>
+        <button class="act" data-cmd="26">PAGE</button>
+        <button class="act" data-cmd="21">SAVE</button>
+      </div>
+      <div class="status" id="status">waiting for the firmware…</div>
+    </div>
+    <div class="card">
+      <h2>CONTROLS</h2>
+      <div id="sliders"></div>
+    </div>
+  </div>
+<script>
+(async () => {
+  await vibe.ready;
+  const names = ["BITONAL C","DIM SEVENTH","G7 SHARP NINE","ALTERED A",
+                 "ELEVENTH C","POLY D","OCTATONIC E","B TRITONE",
+                 "F SPLIT","C SHARP BITE","BB / C SHARP","AB POLYCHORD",
+                 "E / F CLUSTER","D DIM STACK","B / C SEMITONE","C DIM POLY"];
+  const pads = document.getElementById('pads');
+  names.forEach((name, i) => {
+    const b = document.createElement('button');
+    b.className = 'pad'; b.textContent = (i + 1) + ' · ' + name;
+    b.onclick = () => {
+      vibe.send([0x28, i]);
+      b.classList.add('hit');
+      setTimeout(() => b.classList.remove('hit'), 180);
+    };
+    pads.appendChild(b);
+  });
+
+  document.querySelectorAll('button.act').forEach(b => {
+    b.onclick = () => vibe.send([parseInt(b.dataset.cmd, 16)]);
+  });
+
+  const shown = [
+    'chair','volume','pressure','position','speed','rosin',
+    'vib_rate','vib_depth','body','bridge','room','detune','unison',
+    'rv_decay','rv_damp','chorus_mix','chorus_rate','chorus_depth',
+    'delay_mix','delay_time','delay_fb','echo_mix','echo_time','echo_fb',
+    'style_violin','style_viola','style_cello','style_bass',
+    'pad_mode','chord_dur','chord_vel'
+  ];
+  const sliders = document.getElementById('sliders');
+  const rows = [];
+  for (const id of shown) {
+    const p = vibe.byId(id);
+    if (!p) continue;
+    const row = document.createElement('div'); row.className = 'row';
+    const lab = document.createElement('label'); lab.textContent = p.name;
+    const inp = document.createElement('input'); inp.type = 'range';
+    inp.min = p.min; inp.max = p.max; inp.step = p.steps > 1 ? 1 : (p.max - p.min) / 200;
+    const val = document.createElement('span'); val.className = 'val';
+    inp.oninput = () => vibe.set(p.i, parseFloat(inp.value));
+    row.append(lab, inp, val); sliders.appendChild(row);
+    rows.push({ p, inp, val });
+  }
+  const paint = () => {
+    for (const r of rows) {
+      const v = vibe.values[r.p.i];
+      r.inp.value = v;
+      r.val.textContent = r.p.choices && r.p.steps > 1
+        ? r.p.choices[Math.round(v)] : Number(v).toFixed(2);
+    }
+  };
+  vibe.onValues(paint);
+  paint();
+
+  vibe.onData(bytes => {
+    try {
+      const s = JSON.parse(new TextDecoder().decode(bytes));
+      document.getElementById('status').textContent =
+        s.slot + ' / ' + s.style + ' · ' + s.page + ' · pads ' + s.pads + ' · ' +
+        s.voices + ' voices / ' + s.strings + ' strings · ' + s.presets.join(', ') +
+        (s.demo === '1' ? ' · DEMO' : '');
+    } catch (e) { /* a status frame we do not understand: ignore */ }
+  });
+  vibe.send([0x20]);
+})();
+</script>
+</body>
+</html>
